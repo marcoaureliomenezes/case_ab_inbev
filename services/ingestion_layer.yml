@@ -1,0 +1,44 @@
+
+x-common-log-config: &default_config
+  networks:
+    - ab_inbev_network
+
+x-common-healthcheck-default: &default_healthcheck
+  timeout: 45s
+  interval: 10s
+  retries: 10
+  start_period: 10s
+
+services:
+
+  python_job:
+    build: ../docker/app_layer/python_jobs
+    container_name: python_job
+    <<: *default_config
+    env_file:
+      - ./conf/.lakehouse.conf
+      - ./conf/.secrets.conf
+    volumes:
+      - ../docker/app_layer/python_jobs/src:/app
+    environment:
+      MINIO_HOST: http://minio:9000
+      BUCKET: breweries
+
+  spark_job:
+    build: ../docker/app_layer/spark_jobs
+    container_name: spark_job
+    #entrypoint: "sh /app/bronze_to_silver/spark-submit.sh"
+    <<: *default_config
+    env_file:
+      - ./conf/.lakehouse.conf
+      - ./conf/.secrets.conf
+    volumes:
+      - ../docker/app_layer/spark_jobs/src:/app
+    environment:
+      EXECUTION_DATE: "2024-10-21 01:00:00+00:00"
+      BRONZE_PATH: s3a://breweries/bronze
+      SILVER_TABLENAME: nessie.silver.breweries
+
+networks:
+  ab_inbev_network:
+    name: ab_inbev_network

@@ -16,3 +16,8 @@ A arquitetura de serviços reproduzida nesse trabalho é baseada no seguintes re
 - https://github.com/marcoaureliomenezes/dd_chain_explorer
 
 
+### Data Aquisition Job
+
+- Usually 3º party tooling
+- Avoid data reloads
+- Minimal validation, build to be bulletproof

@@ -18,7 +18,7 @@ services:
     restart: always
     hostname: minio
     env_file:
-      - ./conf/.minio.conf
+      - ./conf/.lakehouse.conf
     <<: *default_config
     volumes:
       - ab_inbev_minio_vol:/bitnami/minio/data

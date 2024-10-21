@@ -14,7 +14,8 @@ x-spark-worker-default: &spark_worker_default
   build: ../docker/customized/spark
   <<: *default_config
   env_file:
-    - ./conf/.minio.conf
+    - ./conf/.lakehouse.conf
+    - ./conf/.secrets.conf
   environment:
     - SPARK_MODE=worker
     - SPARK_MASTER_URL=spark://spark-master:7077
@@ -37,17 +38,15 @@ services:
     container_name: notebook
     <<: *default_config
     env_file:
-      - ./conf/.minio.conf
+      - ./conf/.lakehouse.conf
+      - ./conf/.secrets.conf
     volumes:
-      - ../mnt/rosemberg:/app/notebooks
+      - ../mnt/notebooks:/app/
     ports:
       - 8888:8888
-      # - 8080:8080
-      # - 10000:10000
-      # - 10001:10001
     environment:
       NESSIE_URI: http://nessie:19120/api/v1
-      MINIO_HOST: http://minio:9000
+      S3_ENDPOINT: http://minio:9000
 
 
   spark-master:
@@ -55,7 +54,8 @@ services:
     container_name: spark-master
     <<: *default_config
     env_file:
-      - ./conf/.minio.conf
+      - ./conf/.lakehouse.conf
+      - ./conf/.secrets.conf
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
@@ -77,20 +77,6 @@ services:
   spark-worker-2:
     container_name: spark-worker-2
     <<: *spark_worker_default
-
-
-
-  trino:
-    image: trinodb/trino
-    container_name: trino
-    <<: *default_config
-    environment:
-      - DISCOVERY_SERVER_ENABLED=true
-      - HTTP_PORT=8080
-    volumes:
-      - ../mnt/trino/conf:/etc/trino/catalog
-    ports:
-      - "28080:8080"
 
 networks:
   ab_inbev_network:
