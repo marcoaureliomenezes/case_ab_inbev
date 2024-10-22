@@ -21,3 +21,14 @@ A arquitetura de serviços reproduzida nesse trabalho é baseada no seguintes re
 - Usually 3º party tooling
 - Avoid data reloads
 - Minimal validation, build to be bulletproof
+
+
+
+## Tratamentos na camada Silver
+
+
+Após análises foi constatado que as seguintes colunas são redundantes:
+
+- `adress_1` e `street` contem a mesma informação
+
+- state e state_province contem a mesma informação

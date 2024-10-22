@@ -1,3 +1,5 @@
 venv
 
 services/conf/.secrets.conf
+
+mnt/airflow/logs/
