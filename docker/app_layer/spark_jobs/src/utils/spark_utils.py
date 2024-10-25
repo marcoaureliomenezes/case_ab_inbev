@@ -8,8 +8,9 @@ def get_spark_session(app_name):
   jar_packages = [
     "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.6.1",
     "org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.99.0",
-    "software.amazon.awssdk:bundle:2.28.13",
-    "software.amazon.awssdk:url-connection-client:2.28.13"
+    #"software.amazon.awssdk:bundle:2.28.13",
+    #"software.amazon.awssdk:url-connection-client:2.28.13"
+    "org.apache.iceberg:iceberg-aws-bundle:1.6.1"
   ]
 
   spark_extensions = [

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime as dt
 
-from pyspark.sql.functions import col, concat_ws, lit
+from pyspark.sql.functions import col, concat_ws, lit, when
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 
 from spark_utils import get_spark_session
@@ -30,6 +30,9 @@ class BronzeToSilver:
     city            string COMMENT 'City',
     state           string COMMENT 'State',
     country         string COMMENT 'Country',
+    current         boolean COMMENT 'Current record',
+    effective_date  string COMMENT 'Effective date',
+    end_date        string COMMENT 'End date',
     date_hour_ref   string COMMENT 'Date and hour reference')
     USING iceberg
     PARTITIONED BY (country)
@@ -98,11 +101,49 @@ class BronzeToSilver:
         "postal_code", "address", "city", "state", "state_province", "country", "date_hour_ref")
   
 
+  def change_some_rows(self, df):
+    return df.withColumn("city", 
+                         when(col("city") == "Portland", "Portlandia")
+                          .otherwise(col("city")))
+
   def add_date_hour_column(self, df, exec_date):
     return df.withColumn("date_hour_ref", lit(exec_date.strftime("%Y-%m-%d %H:00:00")))
 
-  def write_df_to_silver(self, df):
-    df.write.format("iceberg").partitionBy("country").mode("overwrite").saveAsTable(self.silver_tablename)
+  # def write_df_to_silver(self, df):
+  #   df.write.format("iceberg").partitionBy("country").mode("overwrite").saveAsTable(self.silver_tablename)
+
+  def execute_scd_type_2(self, df):
+    table = self.spark.table(self.silver_tablename)
+    table.createOrReplaceTempView("silver_table")
+    df.createOrReplaceTempView("bronze_table")
+    df = self.spark.sql(f"""
+    MERGE INTO {self.silver_tablename} s
+    USING (
+      SELECT bronze_table.id as merge_key, bronze_table.*
+      FROM bronze_table
+      
+      UNION ALL
+
+      SELECT NULL as merge_key, bronze_table.*
+      FROM bronze_table
+      JOIN {self.silver_tablename} ON bronze_table.id = {self.silver_tablename}.id
+      WHERE {self.silver_tablename}.current = true AND bronze_table.city <> {self.silver_tablename}.city
+      ) b
+
+    ON s.id = merge_key
+    WHEN MATCHED AND s.current = true AND (
+                        s.name <> b.name OR s.brewery_type <> b.brewery_type OR s.phone <> b.phone 
+                        OR s.website_url <> b.website_url OR s.latitude <> b.latitude OR s.longitude <> b.longitude
+                        OR s.postal_code <> b.postal_code OR s.address <> b.address OR s.city <> b.city
+                        OR s.state <> b.state OR s.country <> b.country
+      )
+    THEN UPDATE SET current = false, end_date = b.date_hour_ref
+    WHEN NOT MATCHED
+    THEN INSERT (id, name, brewery_type, phone, website_url, latitude, longitude, postal_code, address, city, state, country, current, effective_date, end_date, date_hour_ref)
+    VALUES (b.id, b.name, b.brewery_type, b.phone, b.website_url, b.latitude, b.longitude, b.postal_code, b.address, b.city, b.state, b.country, true, b.date_hour_ref, null, b.date_hour_ref)
+    """)
+
+
 
   def run(self, exec_date):
     path_raw_data = self.configure_path(exec_date)
@@ -113,7 +154,9 @@ class BronzeToSilver:
     df_transformed = self.cast_columns(df_transformed)
     df_transformed = self.add_date_hour_column(df_transformed, exec_date)
     df_transformed = self.compose_layout(df_transformed)
-    self.write_df_to_silver(df_transformed)
+    df_transformed = self.change_some_rows(df_transformed)
+    self.execute_scd_type_2(df_transformed)
+    spark.sql(f"SELECT * FROM {self.silver_tablename}").show()
 
 
 if __name__ == "__main__":
@@ -127,7 +170,7 @@ if __name__ == "__main__":
 
   spark = get_spark_session(spark_app_name)
   
-  spark.sql("DROP TABLE IF EXISTS nessie.silver.breweries PURGE")
+  #spark.sql("DROP TABLE IF EXISTS nessie.silver.breweries")
   bronze_to_silver = BronzeToSilver(spark, path_bronze, silver_tablename)
   bronze_to_silver.create_table()
   bronze_to_silver.run(exec_date)
