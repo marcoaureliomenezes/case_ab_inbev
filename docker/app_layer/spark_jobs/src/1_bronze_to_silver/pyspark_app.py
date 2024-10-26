@@ -2,7 +2,7 @@ import os
 from datetime import datetime as dt
 
 from pyspark.sql.functions import col, concat_ws, lit, when
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType
+from pyspark.sql.types import StructType, StructField, StringType
 
 from spark_utils import get_spark_session
 
@@ -142,7 +142,16 @@ class BronzeToSilver:
     VALUES (b.id, b.name, b.brewery_type, b.phone, b.website_url, b.latitude, b.longitude, b.postal_code, b.address, b.city, b.state, b.country, true, b.date_hour_ref, null, b.date_hour_ref)
     """)
 
-
+  def fill_na_with_default(self, df):
+    return df.fillna({
+        "phone": "",
+        "website_url": "",
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "postal_code": "",
+        "address": "",
+      }
+    )
 
   def run(self, exec_date):
     path_raw_data = self.configure_path(exec_date)
@@ -153,7 +162,8 @@ class BronzeToSilver:
     df_transformed = self.cast_columns(df_transformed)
     df_transformed = self.add_date_hour_column(df_transformed, exec_date)
     df_transformed = self.compose_layout(df_transformed)
-    df_transformed = self.change_some_rows(df_transformed)
+    df_transformed = self.fill_na_with_default(df_transformed)
+    #df_transformed = self.change_some_rows(df_transformed)
     self.execute_scd_type_2(df_transformed)
     spark.sql(f"SELECT * FROM {self.silver_tablename}").show()
 
@@ -169,5 +179,7 @@ if __name__ == "__main__":
 
   spark = get_spark_session(spark_app_name)
   bronze_to_silver = BronzeToSilver(spark, path_bronze, silver_tablename)
+  bronze_to_silver.create_table()
   bronze_to_silver.run(exec_date)
+
 

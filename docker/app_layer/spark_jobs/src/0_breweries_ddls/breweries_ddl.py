@@ -39,14 +39,13 @@ class BreweriesDDL:
     return
   
 
-  def create_gold_view_breweries(self, table_name):
+  def create_gold_view_breweries(self, silver_table_name, gold_view_name):
     self.spark.sql(f"""
-    CREATE VIEW IF NOT EXISTS {table_name} AS
-    SELECT *
-    FROM {table_name}
-    WHERE current = true
-    """)
-    self.spark.table(table_name).printSchema()
-    self.logger.info(f"View {table_name} created")
+          CREATE OR REPLACE VIEW {gold_view_name} AS 
+          SELECT country, brewery_type, COUNT(*) AS total FROM {silver_table_name}
+          WHERE end_date IS NULL
+          GROUP BY country, brewery_type""")
+    self.spark.table(gold_view_name).printSchema()
+    self.logger.info(f"View {gold_view_name} created")
     return
     
