@@ -21,10 +21,8 @@ x-airflow-common: &airflow-common
     - conf/.secrets.conf
     - conf/.lakehouse.conf
   volumes:
-    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
-    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
-    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
-    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ../mnt/airflow/dags:/opt/airflow/dags
+    - ../mnt/airflow/logs:/opt/airflow/logs
     - /var/run/docker.sock:/var/run/docker.sock
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:

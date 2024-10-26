@@ -30,12 +30,12 @@ def get_spark_session(app_name):
     #.set('spark.sql.catalog.nessie', "org.apache.iceberg.spark.SparkCatalog")
     #.set('spark.sql.catalog.nessie.s3.path-style-access', 'true')
     .set('spark.sql.catalog.nessie.s3.endpoint', os.getenv("S3_ENDPOINT"))
-    #.set('spark.sql.catalog.nessie.warehouse', 's3://breweries/ice')
+    .set('spark.sql.catalog.nessie.warehouse', 's3a://breweries/warehouse')
     #.set('spark.sql.catalog.nessie.catalog-impl', 'org.apache.iceberg.nessie.NessieCatalog')
     #.set('spark.sql.catalog.nessie.io-impl', 'org.apache.iceberg.aws.s3.S3FileIO')
     .set('spark.sql.catalog.nessie.uri', os.getenv("NESSIE_URI"))
-    #.set('spark.sql.catalog.nessie.ref', 'main')
-    #.set('spark.sql.catalog.nessie.authentication.type', 'NONE')
+    .set('spark.sql.catalog.nessie.ref', 'main')
+    .set('spark.sql.catalog.nessie.authentication.type', 'NONE')
     .set('spark.sql.catalog.nessie.cache-enabled', 'false')    
     .set('spark.hadoop.fs.s3a.access.key', os.getenv("AWS_ACCESS_KEY_ID"))
     .set('spark.hadoop.fs.s3a.secret.key', os.getenv("AWS_SECRET_ACCESS_KEY"))
@@ -47,3 +47,10 @@ def get_spark_session(app_name):
   spark = SparkSession.builder.config(conf=conf).getOrCreate()
   spark.sparkContext.setLogLevel("ERROR")
   return spark
+
+
+  # website_url: Trocar nulo por vazio
+  # address: Trocar nulo por vazio
+  # phone: Trocar nulo por vazio
+  # longitude e latitude: Trocar nulo por 0.0
+
