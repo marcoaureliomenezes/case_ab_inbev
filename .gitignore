@@ -3,3 +3,8 @@ venv
 services/conf/.secrets.conf
 
 mnt/airflow/logs/
+
+mnt/airflow/dags/__pycache__
+mnt/airflow/plugins
+mnt/airflow/config
+

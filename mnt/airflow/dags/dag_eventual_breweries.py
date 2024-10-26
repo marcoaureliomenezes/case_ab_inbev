@@ -18,7 +18,10 @@ COMMON_SPARK_VARS = dict(
   S3_ENDPOINT = os.getenv("S3_ENDPOINT"),
   NESSIE_URI = os.getenv("NESSIE_URI"),
   AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID"),
-  AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+  AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY"),
+  AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION"),
+  AWS_REGION = os.getenv("AWS_REGION"),
+  
 )
 
 
@@ -34,7 +37,7 @@ default_args ={
 with DAG(
   f"dag_eventual_breweries",
   start_date=datetime(year=2024,month=7,day=20,hour=2),
-  schedule_interval="@hourly",
+  schedule_interval="@once",
   default_args=default_args,
   max_active_runs=2,
   catchup=False
@@ -46,29 +49,10 @@ with DAG(
     )
 
 
-    create_namespace_bronze = DockerOperator(
-      **COMMON_KWARGS_DOCKER_OPERATOR,
-      task_id="create_namespace_bronze",
-      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 1_namespace_bronze/pyspark_app.py",
-      environment= dict(
-          **COMMON_SPARK_VARS,
-          NAMESPACE_NAME = "nessie.bronze"
-      )
-    )
-
-    create_table_bronze_breweries = DockerOperator(
-      **COMMON_KWARGS_DOCKER_OPERATOR,
-      task_id="create_table_bronze_breweries",
-      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 4_table_breweries_bronze/pyspark_app.py",
-      environment= dict(
-          **COMMON_SPARK_VARS,
-          TABLE_NAME = "nessie.bronze.breweries")
-    )
-
     create_namespace_silver = DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
-      task_id="create_namespace_silver_breweries",
-      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 2_namespace_silver/pyspark_app.py",
+      task_id="create_namespace_silver",
+      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 1_namespace_silver/pyspark_app.py",
       environment= dict(
           **COMMON_SPARK_VARS,
           NAMESPACE_NAME = "nessie.silver")
@@ -77,7 +61,7 @@ with DAG(
     create_table_silver_breweries = DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       task_id="create_table_silver_breweries",
-      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 5_table_breweries_silver/pyspark_app.py",
+      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 3_table_breweries_silver/pyspark_app.py",
       environment= dict(
           **COMMON_SPARK_VARS,
           TABLE_NAME = "nessie.silver.breweries")
@@ -87,7 +71,7 @@ with DAG(
     create_namespace_gold = DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       task_id="create_namespace_gold",
-      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 3_namespace_gold/pyspark_app.py",
+      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 2_namespace_gold/pyspark_app.py",
       environment= dict(
           **COMMON_SPARK_VARS,
           NAMESPACE_NAME = "nessie.gold"
@@ -98,16 +82,14 @@ with DAG(
     create_view_gold_breweries = DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       task_id="create_view_gold_breweries",
-      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 6_view_breweries_gold/pyspark_app.py",
+      entrypoint="sh /app/0_breweries_ddls/eventual_jobs/submit-ddl.sh 4_view_breweries_gold/pyspark_app.py",
       environment= dict(
           **COMMON_SPARK_VARS,
-          TABLE_NAME = "nessie.bronze.breweries"
+          TABLE_NAME = "nessie.gold.breweries"
       )
     )
 
 
-    starting_process >> create_namespace_bronze >> create_table_bronze_breweries
 
     starting_process >> create_namespace_silver >> create_table_silver_breweries
-
     starting_process >> create_namespace_gold >> create_view_gold_breweries

@@ -6,7 +6,7 @@ class BreweriesCrawler:
         self.logger = logger
 
 
-    def get_page(self, page_size=50, page=1):
+    def get_page(self, page_size=200, page=1):
         base_url = "https://api.openbrewerydb.org/v1/breweries"
         response = requests.get(base_url, params={"per_page": page_size, "page": page})
         data = response.json()

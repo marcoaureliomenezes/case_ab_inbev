@@ -24,7 +24,7 @@ class CrawlerBreweries:
         return self
   
     def config_file_prefix(self, lake_path, execution_date):
-        execution_date = dt.fromtimestamp(execution_date)
+        execution_date = dt.strptime(execution_date, '%Y-%m-%d %H:%M:%S%z')
         partitioned_path = dt.strftime(execution_date, 'year=%Y/month=%m/day=%d/hour=%H')
         self.basepath = {"local": f"./tmp/{partitioned_path}", "s3": f"{lake_path}/{partitioned_path}"}
         _ = os.makedirs(self.basepath["local"], exist_ok=True)
@@ -38,23 +38,22 @@ class CrawlerBreweries:
         self.logger.info(f"File written locally: {path}")
 
     def is_file_data_already_uploaded(self, s3_path):
-        try:
-            self.s3.head_object(Bucket=self.bucket, Key=s3_path)
-            return True
-        except Exception as err: 
-            print(err)
-            return False
+        try: self.s3.head_object(Bucket=self.bucket, Key=s3_path)
+        except Exception as err: self.logger.error(err) ; return False
+        else: self.logger.info(f"File already uploaded: {s3_path}") ; return True
 
+
+    def compose_file_name(self, page, payload):
+        hash = hashlib.sha256(json.dumps(payload).encode()).hexdigest() 
+        return f"{str(page).zfill(4)}-{len(payload)}-{hash[:16]}"
+    
+    
     def run(self, crawler):
-        page = 1
         for page, payload in crawler.get_all_pages():
-            hash = hashlib.sha256(json.dumps(payload).encode()).hexdigest() 
-            file_name = f"{str(page).zfill(4)}-{hash[:16]}" # Nome de arquivo composto por pagina + hash 256 dos dados
+            file_name = self.compose_file_name(page, payload)
             local_path = f"{self.basepath['local']}/{file_name}.json.gz"
             s3_path = f"{self.basepath['s3']}/{file_name}.json.gz"
-            if self.is_file_data_already_uploaded(s3_path):
-                self.logger.info(f"File already uploaded: {s3_path}")
-                continue
+            if self.is_file_data_already_uploaded(s3_path): continue
             self.__write_compressed_parquet(payload, local_path)
             self.s3.upload_file(local_path, self.bucket, s3_path)
             self.logger.info(f"File uploaded to S3: {s3_path}")
@@ -69,19 +68,16 @@ if __name__ == "__main__":
     S3_ENDPOINT = os.getenv("S3_ENDPOINT")
     ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
     SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+    EXECUTION_DATE = os.getenv("EXECUTION_DATE")
     BUCKET = os.getenv("BUCKET")
     LAYER = "bronze"
 
-    print(S3_ENDPOINT, ACCESS_KEY, SECRET_KEY, BUCKET)
+    logger.info(f"S3_ENDPOINT: {S3_ENDPOINT}")
+    logger.info(f"BUCKET: {BUCKET}")
+    logger.info(f"EXECUTION_DATE: {EXECUTION_DATE}")
 
     crawler = BreweriesCrawler(logger)
-    res = crawler.get_metadata()
-    iceberg_writer = BronzeWriter(logger)
-    iceberg_writer.config_s3_client_conn(S3_ENDPOINT, ACCESS_KEY, SECRET_KEY, BUCKET)
-    iceberg_writer.config_file_prefix(LAYER, dt.now().timestamp())
-    iceberg_writer.run(crawler)
-    # print(res)
-    # for page in crawler.get_all_pages():
-    #     print(len(page))
-        
-    # print(page)
+    breweries_bronze_job = CrawlerBreweries(logger)
+    breweries_bronze_job.config_s3_client_conn(S3_ENDPOINT, ACCESS_KEY, SECRET_KEY, BUCKET)
+    breweries_bronze_job.config_file_prefix(LAYER, EXECUTION_DATE)
+    breweries_bronze_job.run(crawler)

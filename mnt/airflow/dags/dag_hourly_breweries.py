@@ -6,6 +6,7 @@ from airflow.providers.docker.operators.docker import DockerOperator
 
 
 COMMON_KWARGS_DOCKER_OPERATOR = dict(
+  network_mode="ab_inbev_network",
   docker_url="unix:/var/run/docker.sock",
   auto_remove=True,
   mount_tmp_dir=False,
@@ -38,30 +39,28 @@ with DAG(
     breweries_capture_and_ingest = DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       image="breweries-python-apps:1.0.0",
-      network_mode="ab_inbev_network",
       task_id="breweries_capture_and_ingest",
-      entrypoint="python /app/1_crawler_api_breweries.py",
+      entrypoint="python /app/1_crawler_breweries.py",
       environment= {
       "S3_ENDPOINT": os.getenv("S3_ENDPOINT"),
       "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
       "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
       "BUCKET": "breweries",
-      "END_DATE": "{{ execution_date }}"                      
+      "EXECUTION_DATE": "{{ execution_date }}"                      
       }
     )
     
     check_breweries_data_length = DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       image="breweries-python-apps:1.0.0",
-      network_mode="ab_inbev_network",
       task_id="check_breweries_data_length",
-      entrypoint="python /app/2_check_breweries_size.py",
+      entrypoint="python /app/2_checker_breweries.py",
       environment= {
       "S3_ENDPOINT": os.getenv("S3_ENDPOINT"),
       "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
       "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
       "BUCKET": "breweries",
-      "END_DATE": "{{ execution_date }}"                      
+      "EXECUTION_DATE": "{{ execution_date }}"                      
       }
     )
 
@@ -70,47 +69,38 @@ with DAG(
       bash_command="""sleep 2"""
     )
 
-    breweries_raw_to_bronze = DockerOperator(
-      **COMMON_KWARGS_DOCKER_OPERATOR,
-      image="breweries-spark-apps:1.0.0",
-      network_mode="ab_inbev_network",
-      task_id="breweries_raw_to_bronze",
-      entrypoint="python /app/crawler_api_breweries.py",
-      environment= {
-      "S3_ENDPOINT": os.getenv("S3_ENDPOINT"),
-      "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
-      "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
-      "BUCKET": "breweries",
-      "END_DATE": "{{ execution_date }}"                      
-      }
-    )
 
     breweries_bronze_to_silver= DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       image="breweries-spark-apps:1.0.0",
       task_id="breweries_bronze_to_silver",
-      entrypoint="python /app/crawler_api_breweries.py",
+      entrypoint="sh /app/1_bronze_to_silver/spark-submit.sh",
       environment= {
       "S3_ENDPOINT": os.getenv("S3_ENDPOINT"),
+      "NESSIE_URI": os.getenv("NESSIE_URI"),
+      "AWS_DEFAULT_REGION": os.getenv("AWS_DEFAULT_REGION"),
+      "AWS_REGION": os.getenv("AWS_DEFAULT_REGION"),
       "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
       "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
       "BUCKET": "breweries",
-      "END_DATE": "{{ execution_date }}"                      
+      "EXECUTION_DATE": "{{ execution_date }}"                      
       }
     )
     
     breweries_silver_to_gold= DockerOperator(
       **COMMON_KWARGS_DOCKER_OPERATOR,
       image="breweries-spark-apps:1.0.0",
-      network_mode="ab_inbev_network",
       task_id="breweries_silver_to_gold",
       entrypoint="python /app/crawler_api_breweries.py",
       environment= {
+        
       "S3_ENDPOINT": os.getenv("S3_ENDPOINT"),
+      "NESSIE_URI": os.getenv("NESSIE_URI"),
+      "AWS_DEFAULT_REGION": os.getenv("AWS_DEFAULT_REGION"),
       "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
       "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
       "BUCKET": "breweries",
-      "END_DATE": "{{ execution_date }}"                      
+      "EXECUTION_DATE": "{{ execution_date }}"                      
       }
     )
 
@@ -122,4 +112,4 @@ with DAG(
 
     starting_process >> breweries_capture_and_ingest >> check_breweries_data_length >> notify_incomplete_data
     
-    starting_process >> breweries_capture_and_ingest >> breweries_raw_to_bronze >> breweries_bronze_to_silver >> breweries_silver_to_gold >> end_process
+    starting_process >> breweries_capture_and_ingest >> breweries_bronze_to_silver >> breweries_silver_to_gold >> end_process

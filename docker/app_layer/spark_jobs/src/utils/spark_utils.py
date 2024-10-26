@@ -18,10 +18,16 @@ def get_spark_session(app_name):
     "org.projectnessie.spark.extensions.NessieSparkSessionExtensions"
   ]
 
-  print(os.getenv("NESSIE_URI"))
-  print(os.getenv("AWS_ACCESS_KEY_ID"))
-  print(os.getenv("AWS_SECRET_ACCESS_KEY"))
-  print(os.getenv("S3_ENDPOINT"))
+
+  print(f"AWS_DEFAULT_REGION: {os.getenv('AWS_DEFAULT_REGION')}")
+  print(f"AWS_REGION: {os.getenv('AWS_REGION')}")
+  print(f"AWS_ACCESS_KEY_ID: {os.getenv('AWS_ACCESS')}")
+  print(f"AWS_SECRET_ACCESS_KEY: {os.getenv('AWS_SECRET')}")
+  print(f"NESSIE_URI: {os.getenv('NESSIE_URI')}")
+  print(f"S3_ENDPOINT: {os.getenv('S3_ENDPOINT')}")
+  print(f"BUCKET: {os.getenv('BUCKET')}")
+  print(f"EXECUTION_DATE: {os.getenv('EXECUTION_DATE')}")
+  
   conf = (
     pyspark.SparkConf()
     .setAppName(app_name)

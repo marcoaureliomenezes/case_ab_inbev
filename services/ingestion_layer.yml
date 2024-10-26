@@ -21,8 +21,7 @@ services:
     volumes:
       - ../docker/app_layer/python_jobs/src:/app
     environment:
-      MINIO_HOST: http://minio:9000
-      BUCKET: breweries
+      BUCKET: staging
 
   spark_job:
     build: ../docker/app_layer/spark_jobs
