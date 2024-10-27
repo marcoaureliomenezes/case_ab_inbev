@@ -1,14 +1,14 @@
 # AB Inbev Case
 
 - **Autor**: Marco Aurelio Reis Lima Menezes
-- **Objetivo**: Apresentação de solução para o case proposto pela AB Inbev;
-- **Motivo**: Processo seletivo para a vaga de Engenheiro de Dados Sênior.
+- **Objetivo**: Apresentação de solução para o case proposto pela AB Inbev
+- **Motivo**: Processo seletivo para a vaga de Engenheiro de Dados Sênior
 
 ### Problema proposto
 
 **Objetivo**: Consumir dados de uma API https://www.openbrewerydb.org e persistir esses dados em um data Lake. Usar a arquitetura medalhão com seus 3 layers (bronze, silver e gold);
 
-### Instruções
+#### Instruções
 
 - Opções de orquestração em aberto, porém com demonstrar habilidades em como orquestrar um pipeline, tratamento de erros, monitoramento e logging;
 - Linguagem em aberto. Python e Pyspark preferível mas não obrigatório;
@@ -27,7 +27,6 @@
 - Descrever como implementaria um processo de monitoramento e alerta para o pipeline;
 - Considerar data quality issue, fahlas do pipeline e outros potenciais problemas na resposta
 
-
 # Solução
 
 #### Referências
@@ -39,17 +38,20 @@ A arquitetura de serviços reproduzida nesse trabalho é construída em docker e
 
 ## 2. Introdução ao case criado
 
+Dado o case proposto, esse repositório contempla uma solução que atende as especificações listadas acima. A solução foi construída em cima de uma arquitetura medalhão, com 3 camadas: bronze, silver e gold.
+
 Algumas decisões de caracter técnico foram tomadas para a construção da solução. Abaixo serão enumeradas algumas dessas.
 
-### 2.2. Tempestividade do processo
+### 2.1. Cadência ou frequência do processo
 
-Em um pipeline de dados, a natureza deste em relação ao tempo, atende a diferentes própositos. Entre pipelines batch e streaming a tempestividade do processo de ingestão varia por um espectro que tem como extremos:
-- `Ingestão batch` que vão de **frequências mensais, semanais, diárias, horárias**.
-- `Micro-batch or near-real-time (spark streaming)` e `processamento em tempo real usando o Apache Flink como exemplo`.
+Em um pipeline de dados, a natureza deste em relação ao tempo abrange diferentes características. Esses pipelines variam por um espectro com os seguintes extremos:
+- **Ingestão batch** que vão de **frequências mensais, semanais, diárias, horárias**.
+- **Micro-batch or near-real-time** com Spark streaming por exemplo e **processamento em tempo real** usando o Apache Flink.
 
-Ao analisar esse aspecto, pode-se dizer que a escolha da natureza, batch ou streaming, e em casos de batch a frequência de ingestão, é um dos pontos mais críticos na construção desse pipeline de dados. 2 informações são cruciais para a tomada de decisão:
-- A natureza do dado na origem;
-- A natureza do dado na ponta e perguntas a serem respondidas.
+Ao se projetar um pipelines, é importante entender a natureza do dado na origem e na ponta, para então decidir qual a melhor cadência de processamento. Alguns pontos a serem considerados são:
+- A natureza do dado na origem, volumetria, velocidade e variabilidade;
+- A natureza do dado na ponta e perguntas a serem respondidas, o que influencia diretamente máxima latência aceitável;
+- Capacidade de processamento e armazenamento considerando parâmetros com throughput máximo, dis
 
 #### 2.1.1. Natureza do dado na origem
 
@@ -57,18 +59,25 @@ Ao analisar esse aspecto, pode-se dizer que a escolha da natureza, batch ou stre
 2. Por inferência, esses dados estão provavelmente em um database, transacional NoSQL ou SQL, sendo consumidos pela API mencionada.
 3. É possível supôr que esse dado, transacional, é alterado de forma assíncrona por uma 2ª API, que teria a finalidade de atualizar o cadastro das breweries.
 
-Extendendo para uma ingestão de inúmeras origens para um ambiente analítico, com origens de alto volume de TPS (transações por segundo), seja update ou insert pode ser interessante criar uma ingestão do dado em streaming usando a API ou mesmo configurar o um conector CDC (Change Data Capture) no banco de dados de origem para trazer esse dado transacional para um ambiente voltado a analytics.
+Em casos produtivos semelhantes, geralmente inúmeras origens transacionais são ingestadas para um ambiente analítico, podendo tais origens sofrer operações de insert e update com frequências variadas.
+
+Para esses casos opções interessantes são:
+
+1. Usar um **Kafka Connect Source**, **Cluster de brokers Kafka** e **Kafka Connect Sink** ou arquitetura análoga usando serviços de cloud, e criar um fluxo de dados em tempo real baseado em CDC por exemplo para entregar o dado de origem transacional para o ambiente analítico. **Observação**: Nesse caso o dado é consumido diretamente do banco de dados de origem, sem passar pela API.
+
+2. Usar **jobs em Python**, consumindo da API e produzindo mensagens em tópicos de um **Cluster de brokers Kafka**. E **job Spark Streaming** consumindo tópicos do Kafka e gravando o dado em uma tabela bronze, usando a estratégia de **ingestão em streaming multiplex**.
 
 #### 2.1.2. A natureza do dado na ponta e perguntas a serem respondidas
 
-Digamos que as perguntas a serem respondidas la na ponta são do tipo:
+Para esse case as perguntas a serem respondidas não foram explicitadas, mas inferidas a partir da descrição da View Gold.
+
+Para entender como esse fator influencia na decisão de cadência do pipeline, digamos que as perguntas a serem respondidas na ponta são do tipo:
 - "Quantas breweries foram adicionadas na última hora?" 
 - "Quantas vezes e quando ocorreu o cadastro de uma brewery que foi alterado logo em seguida?" 
 
-Para responder a essas perguntas a captura de dados em tempo real é necessária.
+Para responder a essas perguntas a captura de dados em tempo real seria necessária.
 
-
-#### 2.1.3. Escolha de freqência de processamento
+#### 2.1.3. Escolha de frequência de processamento
 
 - Posta a análise acima, após consultas na API e interpretação sobre o descritivo do case foi inferido que o dado não é atualizado tão frequentemente.
 - Portanto, e uma ingestão batch de frequencia hora em hora é suficiente para atender a demanda. 
