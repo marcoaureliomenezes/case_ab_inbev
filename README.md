@@ -31,16 +31,18 @@
 
 #### Referências
 
-A arquitetura de serviços reproduzida nesse trabalho é construída em docker e tendo como referência os seguintes repositórios:
-
-- https://github.com/marcoaureliomenezes/ice-lakehouse
-- https://github.com/marcoaureliomenezes/dd_chain_explorer
 
 ## 2. Arquitetura técnica para o case criado
 
 - De acordo com as especificações do case, são necessários serviços com diferentes funcionalidades.
 - Foi escolhida a ferramenta **docker** para instanciar todos os serviços necessários localmente na forma de containers.
 - Na pasta `services` estão definidos `arquivos yml` nos quais os serviços estão divididos por camadas.
+
+
+A arquitetura de serviços reproduzida tem como referência projetos pessoais desenvolvidos nos seguintes repositórios:
+
+- https://github.com/marcoaureliomenezes/ice-lakehouse
+- https://github.com/marcoaureliomenezes/dd_chain_explorer
 
 ### 2.1. Camada Lakehouse
 
@@ -82,10 +84,10 @@ Na camada de serviços Lakehouse estão os serviços necessários para montar o 
 
 - Na camada de processamento estão os serviços necessários para processar os dados. 
 - Nesse trabalho foi utilizado o Apache Spark, ferramenta de processamento em memória distribuído e tolerante a falhas.
-- Para um cluster Spark deployado de forma Standalone, a configuração de serviços `1 Spark Master` e `N Spark Worker` é o padrão.
+- Para um cluster Spark deployado de forma Standalone, a configuração de serviços **1 Spark Master** e **N Spark Worker** é o padrão.
 - A quantidade de workers pode ser ajustada conforme a necessidade de recursos computacionais.
 - Aplicações Spark são compostas por 1 driver e N executors, onde o driver é responsável por orquestrar a execução do job e os executors são responsáveis por executar as tarefas.
-- A forma de deploy `cluster mode` ou `client mode` determina se o driver executará a partir do client (aplicação que submeteu o job) ou no cluster em algum dos workers.
+- A forma de deploy **cluster mode** ou **client mode** determina se o driver executará a partir do client (aplicação que submeteu o job) ou no cluster em algum dos workers.
 
 Os serviços estão definidos no arquivo `/services/processing.yml`. São eles:
 
@@ -99,6 +101,8 @@ Os serviços estão definidos no arquivo `/services/processing.yml`. São eles:
 - Serviço que executa as tarefas dos jobs Spark.
 - Nesse case fsão instanciados **2 workers com 1 core e 1GB de memória cada**.
 
+[![spark_UI](img/spark_UI.png)](spark_UI.png)
+
 #### 2.2.3. Notebook - Jupyterlab
 
 - Aplicações Spark podem ser submetidas ao cluster, usando notebooks interativos como o Jupyterlab.
@@ -106,15 +110,28 @@ Os serviços estão definidos no arquivo `/services/processing.yml`. São eles:
 - Esse notebook pode ser usado para explorar os dados, desenvolver e testar queries.
 - O Jupyterlab estará disponível em `http://localhost:8888`.
 
-### 3. Camada de Orquestração
+### 2.3. Camada de Orquestração
 
-- Na camada de orquestração estão os serviços necessários para orquestrar os pipelines de dados.
-- Nesse trabalho foi utilizado o Apache Airflow, ferramenta de orquestração de pipelines de dados.
-- O Apache airflow pode ser deployado de diferentes formas, tais como em um cluster Kubernetes, em um cluster de máquinas virtuais, em um cluster de containers, entre outros.
-- A depender da escolha de deploy, a arquitetura do Airflow pode variar, com a inclusão de serviços como Postgres, Redis, Workers, Scheduler, Webserver, entre outros.
+- Na camada de orquestração estão os serviços de orquestração de pipelines de dados.
+- **Foi utilizado o Apache Airflow** como ferramenta de orquestração.
+- O Airflow pode ser deployado em um cluster Kubernetes, em um cluster de máquinas virtuais, em um cluster de containers, entre outros.
+- A arquitetura de serviços necessários para o Airflow pode variar, de acordo com o tipo de executor e workloads a serem executados. 
+- O airflow disponibiliza os **tipos de executores LocalExecutor, CeleryExecutor e KubernetesExecutor**, cada um com suas características e trade-offs.
+
+Para esse case a configuração do airflow foi:
+- **LocalExecutor**, para execução das tarefas em paralelo no mesmo host onde o Airflow está deployado.
+- **Uso de DockerOperator**, para execução de tarefas em containers, desacoplando o ambiente de execução do ambiente de deploy.
+- Os seguintes serviços foram deployados:
+    - **Postgres**: como backend de metadados do Airflow. Armazena informações sobre DAG Runs, Tasks, Logs, etc.
+    - **Airflow Webserver**: como interface web do Airflow, disponível em `http://localhost:8080`.
+    - **Airflow Scheduler**: como serviço que executa as tarefas agendadas pelo Airflow.
+    - **Airflow init**: como serviço que inicializa o Airflow, criando conexões, variáveis, pools, etc.
+
+
+[![airflow](img/airflow.png)](airflow.png)
+
+
 - Para esse case, o Apache Airflow foi deployado em um cluster de containers, com os serviços definidos no arquivo `/services/orchestration.yml`.
-- Foi utilizado o executor `LocalExecutor`, que executa as tarefas em paralelo no mesmo host onde o Airflow está deployado.
-- O Airflow, para esse case faz uso de operadores DockerOperator para executar tarefas em containers, desacoplando o ambiente de execução do ambiente de deploy.
 
 
 Nesse docmento
