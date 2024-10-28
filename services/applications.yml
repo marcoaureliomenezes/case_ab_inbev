@@ -2,6 +2,9 @@
 x-common-log-config: &default_config
   networks:
     - ab_inbev_network
+  env_file:
+    - ./conf/.lakehouse.conf
+    - ./conf/.secrets.conf
 
 x-common-healthcheck-default: &default_healthcheck
   timeout: 45s
@@ -11,32 +14,41 @@ x-common-healthcheck-default: &default_healthcheck
 
 services:
 
+  notebook:
+    build: ../docker/customized/notebook
+    container_name: notebook
+    <<: *default_config
+    ports:
+      - 8888:8888
+    volumes:
+      - ../mnt/notebooks:/app/
+    environment:
+      S3_ENDPOINT: http://minio:9000
+
+
   python_job:
     build: ../docker/app_layer/python_jobs
     container_name: python_job
     <<: *default_config
-    env_file:
-      - ./conf/.lakehouse.conf
-      - ./conf/.secrets.conf
+    #entrypoint: "python /app/bronze_to_silver/main.py"
     volumes:
       - ../docker/app_layer/python_jobs/src:/app
     environment:
       BUCKET: staging
 
+
   spark_job:
     build: ../docker/app_layer/spark_jobs
     container_name: spark_job
-    #entrypoint: "sh /app/bronze_to_silver/spark-submit.sh"
     <<: *default_config
-    env_file:
-      - ./conf/.lakehouse.conf
-      - ./conf/.secrets.conf
+    #entrypoint: "sh /app/bronze_to_silver/spark-submit.sh"
     volumes:
       - ../docker/app_layer/spark_jobs/src:/app
     environment:
       EXECUTION_DATE: "2024-10-21 01:00:00+00:00"
       BRONZE_PATH: s3a://breweries/bronze
       SILVER_TABLENAME: nessie.silver.breweries
+
 
 networks:
   ab_inbev_network:

@@ -1,16 +1,11 @@
 current_branch = 1.0.0
 
-build_notebook:
-	@docker build -t breweries-notebook:$(current_branch) ./docker/customized/notebook
+build_images:
+	@docker build -t breweries-spark:$(current_branch) 				./docker/customized/spark
+	@docker build -t breweries-spark-notebooks:$(current_branch) 	./docker/customized/notebook
+	@docker build -t breweries-spark-apps:$(current_branch) 		./docker/app/spark_jobs
+	@docker build -t breweries-python-apps:$(current_branch) 		./docker/app/python_jobs
 
-build_spark:
-	@docker build -t breweries-spark:$(current_branch) ./docker/customized/spark
-
-build_python_apps_image:
-	@docker build -t breweries-python-apps:$(current_branch) ./docker/app/python_jobs
-
-build_spark_apps_image:
-	@docker build -t breweries-spark-apps:$(current_branch) ./docker/app/spark_jobs
 
 deploy_services:
 	@docker compose -f services/lakehouse.yml up -d --build
