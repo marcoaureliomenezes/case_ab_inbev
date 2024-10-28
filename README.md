@@ -74,22 +74,26 @@ Na camada de serviços Lakehouse estão os serviços necessários para montar o 
 
 #### 2.1.4. Query Engine - Dremio
 
-- Dremio é um serviço de query engine que permite a execução de queries SQL sobre dados armazenados em diferentes fontes de dados, como S3, HDFS, RDBMS, NoSQL, etc.
-- Como serviço análogo pode ser usado o Trino, o Athena, entre outros.
-- Após deploy de cluster uma UI do Dremio estará disponível em `http://localhost:9047`.
+Dremio é um serviço de query engine que permite a execução de queries SQL sobre dados armazenados em diferentes fontes de dados, como S3, HDFS, RDBMS, NoSQL, etc. Como serviço análogo pode ser usado o Trino, o Athena, entre outros.
+
+Após deploy de cluster uma UI do Dremio estará disponível em `http://localhost:9047`.
 
 [![dremio](img/dremio.png)](dremio.png)
 
 ### 2.2. Camada de Processamento
 
-- Na camada de processamento estão os serviços necessários para processar os dados. 
-- Nesse trabalho foi utilizado o Apache Spark, ferramenta de processamento em memória distribuído e tolerante a falhas.
-- Para um cluster Spark deployado de forma Standalone, a configuração de serviços **1 Spark Master** e **N Spark Worker** é o padrão.
-- A quantidade de workers pode ser ajustada conforme a necessidade de recursos computacionais.
-- Aplicações Spark são compostas por 1 driver e N executors, onde o driver é responsável por orquestrar a execução do job e os executors são responsáveis por executar as tarefas.
-- A forma de deploy **cluster mode** ou **client mode** determina se o driver executará a partir do client (aplicação que submeteu o job) ou no cluster em algum dos workers.
+Na camada de processamento estão os serviços necessários para processar os dados. Foi utilizado o **Apache Spark**, ferramenta de processamento em memória distribuído e tolerante a falhas.
 
-Os serviços estão definidos no arquivo `/services/processing.yml`. São eles:
+
+**Aplicações Spark são compostas por 1 driver e N executors**, sendo o driver é responsável por orquestrar a execução do job e os executors são responsáveis por executar as tarefas.
+
+A forma de deploy da aplicação, em **cluster mode** ou **client mode**, determina se o driver executará a partir do client ou aplicação que submeteu o job. Ou se executará no cluster Spark em algum dos workers.
+
+Existem diferentes formas de deploy de aplicações Spark, como **Kubernetes**, **YARN**, **Mesos** para gerenciar recursos e execução de jobs Spark dentro de um cluster.
+
+Para um cluster Spark deployado de forma Standalone, a configuração de serviços **1 Spark Master** e **N Spark Worker** é o padrão. A quantidade "N" de workers pode ser ajustada conforme a necessidade de recursos computacionais.
+
+Os serviços estão definidos no arquivo `/services/processing.yml`.
 
 #### 2.2.1. Spark Master
 
