@@ -116,13 +116,12 @@ Os serviços estão definidos no arquivo `/services/processing.yml`.
 
 ### 2.3. Camada de Orquestração
 
-- Na camada de orquestração estão os serviços de orquestração de pipelines de dados.
-- **Foi utilizado o Apache Airflow** como ferramenta de orquestração.
-- O Airflow pode ser deployado em um cluster Kubernetes, em um cluster de máquinas virtuais, em um cluster de containers, entre outros.
-- A arquitetura de serviços necessários para o Airflow pode variar, de acordo com o tipo de executor e workloads a serem executados. 
-- O airflow disponibiliza os **tipos de executores LocalExecutor, CeleryExecutor e KubernetesExecutor**, cada um com suas características e trade-offs.
+Na camada de orquestração estão os serviços de orquestração de pipelines de dados. **Foi utilizado o Apache Airflow** como ferramenta de orquestração.
 
-Para esse case a configuração do airflow foi:
+O Airflow pode ser deployado em um cluster Kubernetes, em um cluster de máquinas virtuais, em um cluster de containers, entre outros. A arquitetura de serviços necessários para o Airflow pode variar, de acordo com o tipo de executor e workloads a serem executados. 
+
+O airflow disponibiliza os **tipos de executores LocalExecutor, CeleryExecutor e KubernetesExecutor**, cada um com suas características e trade-offs. Para esse case a configuração do airflow foi:
+
 - **LocalExecutor**, para execução das tarefas em paralelo no mesmo host onde o Airflow está deployado.
 - **Uso de DockerOperator**, para execução de tarefas em containers, desacoplando o ambiente de execução do ambiente de deploy.
 - Os seguintes serviços foram deployados:
@@ -130,20 +129,26 @@ Para esse case a configuração do airflow foi:
     - **Airflow Webserver**: como interface web do Airflow, disponível em `http://localhost:8080`.
     - **Airflow Scheduler**: como serviço que executa as tarefas agendadas pelo Airflow.
     - **Airflow init**: como serviço que inicializa o Airflow, criando conexões, variáveis, pools, etc.
-
+- Os serviços correlacionados ao Airflow estão definidos no arquivo `/services/orchestration.yml`.
 
 [![airflow](img/airflow.png)](airflow.png)
 
+### 2.4. Camada de Monitoramento
 
-- Para esse case, o Apache Airflow foi deployado em um cluster de containers, com os serviços definidos no arquivo `/services/orchestration.yml`.
+Na camada de monitoramento estão os serviços necessários para monitorar o pipeline de dados. **Foi utilizado o Prometheus e Grafana** como ferramentas de monitoramento.
 
+## 3. Diretrizes do case e proposta de solução
 
-Nesse docmento
-Dado o case proposto, esse repositório contempla uma solução que atende as especificações listadas acima. A solução foi construída em cima de uma arquitetura medalhão, com 3 camadas: bronze, silver e gold.
+Com os serviços acima descritos deployados, é possível desenvolver um pipeline de dados que atenda as especificações do case proposto pela AB Inbev. No entanto, algumas análises e decisões precisam ser tomadas para a implementação do pipeline de dados. A seguir esses pontos são explorados.
 
-Algumas decisões de caracter técnico foram tomadas para a construção da solução. Abaixo serão enumeradas algumas dessas.
+- Cadência / frequência do processo de ingestão e tratamento de dados;
+- Formato de armazenamento dos dados na camada bronze;
+- Estratégia de deduplicação na camada bronze;
+- Tratamentos realizados sobre o dado bruto na camada silver;
+- Estratégias de Slowly Changing Dimensions (SCD) para tratamento de alterações de dados;
+- Estratégias de monitoramento e alerting para o pipeline, bem como qualidade de dados.
 
-### 2.1. Cadência / frequência do processo
+### 3.1. Cadência / frequência do processo
 
 Em um pipeline de dados, a natureza deste em relação ao tempo abrange diferentes características. Esses pipelines variam por um espectro com os seguintes extremos:
 - **Ingestão batch** que vão de **frequências mensais, semanais, diárias, horárias**.
@@ -154,7 +159,7 @@ Ao se projetar um pipelines, é importante entender a natureza do dado na origem
 - A natureza do dado na ponta e perguntas a serem respondidas, o que influencia diretamente máxima latência aceitável;
 - Capacidade de processamento e armazenamento considerando parâmetros com throughput máximo, limites operacionais e custos.
 
-#### 2.1.1. Natureza do dado na origem
+#### 3.1.1. Natureza do dado na origem
 
 1. O dado tem origem em a API https://www.openbrewerydb.org. 
 2. Por inferência, esses dados estão provavelmente em um database, transacional NoSQL ou SQL, sendo consumidos pela API mencionada.
@@ -168,7 +173,7 @@ Para esses casos opções interessantes são:
 
 2. Usar **jobs em Python**, consumindo da API e produzindo mensagens em tópicos de um **Cluster de brokers Kafka**. E **job Spark Streaming** consumindo tópicos do Kafka e gravando o dado em uma tabela bronze, usando a estratégia de **ingestão em streaming multiplex**.
 
-#### 2.1.2. A natureza do dado na ponta e perguntas a serem respondidas
+#### 3.1.2. A natureza do dado na ponta e perguntas a serem respondidas
 
 Para esse case as perguntas a serem respondidas não foram explicitadas, mas inferidas a partir da descrição da View Gold.
 
@@ -178,7 +183,7 @@ Para entender como esse fator influencia na decisão de cadência do pipeline, d
 
 Para responder a essas perguntas a captura de dados em tempo real seria necessária.
 
-### 2.2. Escolha de cadência / frequência de processamento para o case
+#### 3.1.3. Escolha de cadência / frequência de processamento para o case
 
 Consideradas as digressões sobre o tema acima, foi feitas consultas a API, para compreender melhor as características do dado. Inferindo-o com um dado cadastral, pode se dizer que deva ser um dado atualizado com pouca frequência.
 
@@ -186,7 +191,7 @@ Dessa forma, foi definido um **pipeline batch de frequência hora em hora** como
 
 Porém dadas as características do dado, algumas técnicas foram implementadas para tratar o dado.
 
-## 3. Arquitetura medalhão
+### 3.2 Ciclo de ingestão, tratamento e consumo de dados
 
 A arquitetura medalhão tem por objetivo separar as camadas de ingestão, tratamento e consumo de dados. A arquitetura medalhão é composta por 3 camadas:
 
@@ -196,36 +201,48 @@ A arquitetura medalhão tem por objetivo separar as camadas de ingestão, tratam
 
 [![lakehouse](img/medallion.png)](medallion.png)
 
-### 3.1. Job de captura e ingestão em camada Bronze
+## 4. Implementação do pipeline de dados
 
-A seguir são apresentados os detalhes da implementação de captura e ingestão do dado.
+### 4.1. Job de captura e ingestão em camada Bronze
 
-- Foram usados aplicações feitas em python para consumir a API e escrever os dados no data lake camada bronze.
-- A implementação desse Job está na pasta `/docker/app_layer/python_jobs/`.
-- Conforme mencionado, o job foi agendado para rodar de hora em hora.
+A captura e ingestão no MinIO dos dados, com origem na API https://www.openbrewerydb.org, é feita por jobs python.
 
-#### 3.1.1. Características de captura do dado:
+- A definição para imagens Python com aplicações encapsuladas está localizada em `/docker/app_layer/python_jobs/`.
+- O job foi agendado para rodar de hora em hora.
+- Os Jobs Python são encapsulados em imagens docker, podendo esses serem executados em qualquer ambiente que suporte containers. 
+- Nesse trabalho eles são executados a partir de operators DockerOperator do Apache Airflow.
+
+[![lakehouse](img/bronze.png)](bronze.png)
+
+#### 4.1.1. Características de captura do dado
+
+A seguir algumas características da fonte de dados que influenciam na implementação do job de captura e ingestão:
 
 - A API retorna dados de breweries, entidades que podem ser alteradas ao longo do tempo.
 - Cada request GET para a rota `/breweries` da API retorna uma lista de breweries paginada.
-- Foi optado por realizar**requests com 200 registros por página** até que a API retorne uma lista vazia, indicando que todos os registros foram capturados.
+- Os parâmetros de paginação são `page` e `per_page`, que indicam respectivamente o número da página e a quantidade de registros por página.
+- Foi optado por realizar **requests com 200 registros por página** até que a API retorne uma lista vazia, indicando que todos os registros foram capturados.
 
-#### 3.1.2. Características do processo de ingestão da camada bronze
+#### 4.1.2. Características do processo de ingestão da camada bronze
 
+A seguir algumas características do processo de ingestão e armazenamento do dado na camada bronze:
 - **Para a camada bronze foi escolhido o formato JSON**, preservando a estrutura original dos dados.
 - Cada arquivo JSON representa uma página de dados retornada pela API.
 - Foi aplicado o **algoritmo de compressão GZIP nos arquivos JSON**, de forma a reduzir o tamanho do arquivo e consequentemente o custo de armazenamento.
 - **Jobs de python são schedulados de hora em hora pelo Airflow** para escrever os dados como arquivos JSON compactados no MinIO.
 - Os arquivos são escritos de forma particionada por data, no formato `year=YYYY/month=MM/day=DD`.
 
-### 3.1.3. Estratégia de deduplicação na camada bronze
+#### 4.1.3. Estratégia de deduplicação na camada bronze
 
-- Os jobs de captura e ingestão executarão de hora em hora.
-- Porém, o dado é escrito na camada bronze de forma particionada por data a nível de dia.
-- Essa divergência é proposital e tem o objetivo de evitar a ingestão de dados duplicados para um mesmo dia.
+Os jobs de captura e ingestão executarão de hora em hora. Para um caso hipotético de que os dados não alteram, a cada hora dados estão sendo duplicados na camada bronze. Algumas vezes isso é desejável, outras não, a depender do requisito de negócio, natureza do dado e custo de armazenamento.
+
+É comum que dados na camada bronze sejam armazenados dentro de pastas particionadas por data, como `year=YYYY/month=MM/day=DD`. Esse tipo de estratégia é bem útil para melhorar o gerenciamento do dado, facilitar a remoção de dados antigos ou criação de lifecycle policies, entre outros.
+
+#### Estratégia de deduplicação
+
+Observe que um job com frequência de execução de hora em hora, armazenando dados em pastas particionadas por dia. Essa divergência é proposital e tem o objetivo de evitar a ingestão de dados duplicados para um mesmo dia.
 
 Para que isso ocorra, a forma com que o nome do arquivo é montado tem um papel fundamental. A estratégia adotada foi a seguinte:
-
 - A cada hora o job faz requestes para API e escreve os dados em "pastas" de particionamento diário.
 - Exemplo `/breweries/bronze/year=2022/month=02/day=01/`.
 - Os arquivos JSON compactados usando compressão GZIP são nomeados da seguinte forma:
@@ -240,35 +257,85 @@ A forma com que o nome do arquivo é montado é uma estratégia para garantir qu
 
 **Obsevação 2**: A lógica implementada para evitar a ingestão de dados duplicados é uma estratégia simples e eficaz. Porém, vale ressaltar que a técnica aplicada pode ser sensível a alterações na paginação por exemplo. Logo, para casos produtivos uma análise mais aprofundada se faz necessária.
 
-### 2.4. Camada Silver
+### 4.2. Camada Silver
 
-Na camada silver, os dados brutos são transformados e tratados para serem consumidos. Para esse case, a **tabela silver breweries** tem as seguintes características:
+Na camada silver, os dados brutos são transformados e tratados para serem consumidos. As seguintes características devem ser consideradas para a implementação dos jobs de tratamento:
 
-- Tabela no formato Iceberg, com dados armazenados em formato colunar Parquet e particionados por `country`.
+#### 4.2.1. Características da tabela `silver breweries`
+
+- **Formato de tabela**: Iceberg;
+- **Formato de arquivo**: colunar Parquet. Tabelas iceberg permitem armazenamento do dado em diferentes formatos, como Parquet, ORC e Avro.
+- **Particionamento de tabela** Campo country.
+- **Tratamentos realizados sobre o dado bruto** Limpeza de dados, remoção de colunas redundantes, conversão de tipos, etc.
+- **Slowly Changing Dimensions (SCD)**: Implementação de SCD tipo 2 para tratamento de alterações de dados.
+
+#### 4.2.2. Características do processo de ingestão da camada silver
+
+A origem dos dados é a camada bronze, com:
+    - Dados armazenados em formato JSON e compactado com GZIP.
+    - pastas particionadas por data, no formato `year=YYYY/month=MM/day=DD`.
+
+O job da camada silver tem como tarefa ler os dados da camada bronze, aplicar tratamentos e escrever os dados na camada silver.
+
+- Para processamento foi utilizada aplicação Apache Spark, usando python.
+- A aplicação Spark foi encapsulada em uma imagem docker, para ser executada em um container.
+- Seu código fonte está localizado em `/docker/app_layer/spark_jobs/src/bronze_to_silver`.
+- O job foi agendado para rodar de hora em hora pelo Apache Airflow.
+- O Apache Airflow utiliza o DockerOperator para instanciar um container contendo o driver da aplicação Spark para executar o job.
+
+**Observação**: O case especifica que a tabela deve ser particionada por brewery location. Devido ao volume de dados, foi escolhido o campo country para particionamento. Para volumes maiores de dados, o particionamento por cidade ou estado pode ser considerado. O particionamento de tabelas é uma técnica que melhora a performance de queries, pois reduz o volume de dados a ser lido.
+
+
 - O formato Iceberg, assim como o delta, possibilita operações de escrita e atualização de dados, bem como operações de merge, controle de versão.
 - Nesse trabalho a operação de MERGE desempenha um papel importante, ao aplicar **Slowly Changing Dimensions (SCD) do tipo 2** sobre os dados da camada bronze.
 - Outras funcionalidades como o controle de versão de dados e otimização de small files ou aplição de Z-Ordering são possíveis com o Iceberg, otimizando a performance de queries.
 
-#### 2.4.1. Tratamentos realizados sobre dado bruto
+#### 4.2.3. Tratamentos realizados sobre dado bruto
+
+Os seguintes tratamentos foram realizados sobre o dado bruto na camada silver:
 
 - Foi analisado que os campos `adress_1` e `street` contêm informações redundantes. Logo, somente o campo `adress_1` foi mantido, sendo renomeado para `adress`.
 - Foi analisado que os campos `state` e `state_province` contêm a mesma informação e por isso foi decidido manter apenas o campo `state`.
 - Os campos `latitude` e `longitude` convertidos do tipo string para double.
 
+### 4.2.4. Slowly Changing Dimensions (SCD)
 
-Foram tratados camp
+Slowly Changing Dimensions (SCD) é uma técnica usada para manter o histórico de alterações de uma entidade ao longo do tempo. Existem diferentes tipos de SCD, sendo os mais comuns o tipo 1, tipo 2 e tipo 3.
+
+O tratamento SCD tipo 2 é um dos mais comuns e é usado para manter o histórico de alterações de uma entidade ao longo do tempo. Portanto, quando ocorre uma alteração de um registro da brewery, uma nova linha é inserida na tabela, mantendo o histórico de alterações.
+
+Para esse caso foram criados os seguintes campos:
+
+- **`start_date`**: Data de início de validade do registro.
+- **`end_date`**: Data de fim de validade do registro.
+- **`current`**: Indica se o registro é o atual. Tem valor `true` para o registro atual e `false` para os registros antigos.
+
+[![silver_table](img/silver_table.png)](silver_table.png)
+
+### 4.3. Camada Gold
 
 
-### 2.4.2. Slowly Changing Dimensions (SCD)
+Na camada gold fornece uma visão agregada dos dados, com o objetivo de responder perguntas de negócio. Para esse case, foi criada uma **view agregada com a quantidade de breweries por tipo e localização**, conforme especificado nas instruções.
 
-- A API retorna dados de breweries, que são entidades que podem ser alteradas ao longo do tempo.
-- Para tratar essas alterações, foi implementado um tratamento de Slowly Changing Dimensions (SCD) do tipo 2.
+[![lakehouse](img/gold.png)](gold.png)
 
-- O tratamento SCD tipo 2 é um dos mais comuns e é usado para manter o histórico de alterações de uma entidade ao longo do tempo. Portanto, quando ocorre uma alteração de um registro da brewery, uma nova linha é inserida na tabela, mantendo o histórico de alterações.
+### 4.4. Orquestração do pipeline de dados
+
+#### 4.4.1. DAG eventuais
+
+Essa DAG contém jobs que executam somente uma vez. São jobs que realizam tarefas como criação namespaces, tabelas, views, etc.
+
+Para interação com o Catalogo de tabelas foram criadas aplicações spark que executam DDLs usando o Spark SQL. Essas aplicações estão em `/docker/app_layer/spark_jobs/src/0_breweries_ddls/eventual_jobs` e executam métodos da classe **BreweriesDDL** definida em `/docker/app_layer/spark_jobs/src/0_breweries_ddls/breweries_ddl.py`.
+
+[![dag_eventual](img/dag_eventual.png)](dag_eventual.png)
+
+#### 4.4.2. DAG de frequência horária
 
 
-## 2. Arquitetura de Solução
+## 5. Monitoramento e alerting
 
-No desenho abaixo estão sintetizadas as camadas de serviço que compõem a solução proposta.
+## 6. Reprodução do Case
+
+## 7. Conclusão
 
 
