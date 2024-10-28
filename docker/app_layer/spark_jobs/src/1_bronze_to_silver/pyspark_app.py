@@ -105,6 +105,7 @@ class BronzeToSilver:
     return df.withColumn("city", 
                          when(col("city") == "Portland", "Portlandia")
                           .otherwise(col("city")))
+  
 
   def add_date_hour_column(self, df, exec_date):
     return df.withColumn("date_hour_ref", lit(exec_date.strftime("%Y-%m-%d %H:00:00")))
