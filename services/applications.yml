@@ -30,22 +30,23 @@ services:
     build: ../docker/app_layer/python_jobs
     container_name: python_job
     <<: *default_config
-    #entrypoint: "python /app/bronze_to_silver/main.py"
+    #entrypoint: "python /app/1_crawler_breweries.py"
     volumes:
       - ../docker/app_layer/python_jobs/src:/app
     environment:
-      BUCKET: staging
+      BUCKET: "breweries"
+      EXECUTION_DATE: "2024-10-21 01:00:00+00:00"
 
 
   spark_job:
     build: ../docker/app_layer/spark_jobs
     container_name: spark_job
     <<: *default_config
-    #entrypoint: "sh /app/bronze_to_silver/spark-submit.sh"
+    #entrypoint: "sh /app/1_bronze_to_silver/spark-submit.sh"
     volumes:
       - ../docker/app_layer/spark_jobs/src:/app
     environment:
-      EXECUTION_DATE: "2024-10-21 01:00:00+00:00"
+      EXECUTION_DATE: "2024-10-31 01:00:00+00:00"
       BRONZE_PATH: s3a://breweries/bronze
       SILVER_TABLENAME: nessie.silver.breweries
 

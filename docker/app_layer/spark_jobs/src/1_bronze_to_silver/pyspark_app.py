@@ -1,7 +1,7 @@
 import os
 from datetime import datetime as dt
 
-from pyspark.sql.functions import col, concat_ws, lit, when
+from pyspark.sql.functions import col, concat_ws, lit, when, trim
 from pyspark.sql.types import StructType, StructField, StringType
 
 from spark_utils import get_spark_session
@@ -45,7 +45,7 @@ class BronzeToSilver:
 
 
   def configure_path(self, exec_date):
-    partition_level = "year=<year>/month=<month>/day=<day>/hour=<hour>/*"
+    partition_level = "year=<year>/month=<month>/day=<day>/*"
     partition_level = partition_level.replace("<year>", str(exec_date.year))
     partition_level = partition_level.replace("<month>", str(exec_date.month).zfill(2))
     partition_level = partition_level.replace("<day>", str(exec_date.day).zfill(2))
@@ -94,6 +94,11 @@ class BronzeToSilver:
         .withColumn("latitude", col("latitude").cast("double")) \
         .withColumn("longitude", col("longitude").cast("double"))
   
+  def apply_trim_to_string_cols(self, df):
+    for col_name in df.columns:
+      if df.schema[col_name].dataType == StringType():
+        df = df.withColumn(col_name, trim(col(col_name)))
+    return df
 
   def compose_layout(self, df):
     return df.select(
@@ -164,7 +169,7 @@ class BronzeToSilver:
     df_transformed = self.add_date_hour_column(df_transformed, exec_date)
     df_transformed = self.compose_layout(df_transformed)
     df_transformed = self.fill_na_with_default(df_transformed)
-    #df_transformed = self.change_some_rows(df_transformed)
+    df_transformed = self.apply_trim_to_string_cols(df_transformed)
     self.execute_scd_type_2(df_transformed)
     spark.sql(f"SELECT * FROM {self.silver_tablename}").show()
 
@@ -180,7 +185,6 @@ if __name__ == "__main__":
 
   spark = get_spark_session(spark_app_name)
   bronze_to_silver = BronzeToSilver(spark, path_bronze, silver_tablename)
-  bronze_to_silver.create_table()
   bronze_to_silver.run(exec_date)
 
 

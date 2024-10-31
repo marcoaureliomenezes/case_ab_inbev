@@ -89,7 +89,9 @@ with DAG(
       )
     )
 
+    end_process = BashOperator(
+      task_id="end_process",
+      bash_command="""sleep 2"""
+    )
 
-
-    starting_process >> create_namespace_silver >> create_table_silver_breweries
-    starting_process >> create_namespace_gold >> create_view_gold_breweries
+    starting_process >> create_namespace_silver >> create_table_silver_breweries >> create_namespace_gold >> create_view_gold_breweries >> end_process
